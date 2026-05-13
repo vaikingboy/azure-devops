@@ -1,0 +1,44 @@
+<!-- website/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DevOps Lab — Azure + Terraform + GitHub Actions</title>
+  <style>
+    body { font-family: sans-serif; background:#0d1117; color:#e6edf3;
+           display:flex; align-items:center; justify-content:center; min-height:100vh; }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:12px;
+            padding:48px; max-width:640px; width:90%; text-align:center; }
+    h1 { color:#58a6ff; }
+    .badge { background:#1f6feb; color:#fff; padding:4px 12px;
+             border-radius:999px; font-size:.8rem; margin:4px; display:inline-block; }
+    .pipeline { display:flex; gap:8px; flex-wrap:wrap;
+                justify-content:center; margin-top:24px; }
+    .step { background:#21262d; border:1px solid #30363d;
+            border-radius:8px; padding:8px 16px; font-size:.85rem; }
+    .arrow { color:#3fb950; }
+    .footer { margin-top:32px; font-size:.8rem; color:#6e7681; }
+    #deploy-time { color:#3fb950; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>DevOps Lab</h1>
+    <p>Deployed automatically via GitHub Actions CI/CD</p>
+    <span class="badge">Azure</span>
+    <span class="badge">Terraform</span>
+    <span class="badge">GitHub Actions</span>
+    <span class="badge">Apache</span>
+    <div class="pipeline">
+      <div class="step">VS Code</div><span class="arrow">&#8594;</span>
+      <div class="step">GitHub</div><span class="arrow">&#8594;</span>
+      <div class="step">Actions</div><span class="arrow">&#8594;</span>
+      <div class="step">Azure VM</div><span class="arrow">&#8594;</span>
+      <div class="step">Apache</div>
+    </div>
+    <div class="footer">
+      <p>Deployed at: <span id="deploy-time">DEPLOY_TIMESTAMP</span></p>
+      <p>Infrastructure by Terraform IaC</p>
+    </div>
+  </div>
+</body></html>

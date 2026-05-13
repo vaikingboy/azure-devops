@@ -1,0 +1,16 @@
+# Terraform — NEVER commit these
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+*.tfvars.json
+ 
+# SSH keys — NEVER commit private keys
+*.pem
+devopslab_key
+devopslab_key.pub
+ 
+# OS
+.DS_Store
+Thumbs.db
