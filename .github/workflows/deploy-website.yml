@@ -1,0 +1,70 @@
+# .github/workflows/deploy-website.yml
+name: Deploy Website
+ 
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-website.yml'
+  workflow_dispatch:   # allow manual trigger too
+ 
+jobs:
+  deploy:
+    name: Deploy to Azure VM
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+ 
+      - name: Inject deploy timestamp
+        run: |
+          DEPLOY_TIME=$(date -u "+%Y-%m-%d %H:%M UTC")
+          sed -i "s/DEPLOY_TIMESTAMP/$DEPLOY_TIME/g" website/index.html
+          echo "Deploy timestamp: $DEPLOY_TIME"
+ 
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.AZURE_VM_IP }} >> ~/.ssh/known_hosts
+          echo "SSH configured for ${{ secrets.AZURE_VM_IP }}"
+ 
+      - name: Create website directory on VM
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VM_USERNAME }}@${{ secrets.AZURE_VM_IP }} \
+            'mkdir -p /tmp/website'
+ 
+      - name: Copy website files to VM
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            -r website/* \
+            ${{ secrets.VM_USERNAME }}@${{ secrets.AZURE_VM_IP }}:/tmp/website/
+ 
+      - name: Deploy files and restart Apache
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.VM_USERNAME }}@${{ secrets.AZURE_VM_IP }} \
+            'sudo cp -r /tmp/website/* /var/www/html/ && \
+             sudo chown -R www-data:www-data /var/www/html && \
+             sudo chmod -R 755 /var/www/html && \
+             sudo systemctl restart apache2 && \
+             echo "Deployed at $(date)"'
+ 
+      - name: Verify website
+        run: |
+          sleep 5
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://${{ secrets.AZURE_VM_IP }})
+          echo "HTTP Status: $HTTP"
+          if [ "$HTTP" != "200" ]; then
+            echo "ERROR: Site not returning 200"
+            exit 1
+          fi
+          echo "Website live at http://${{ secrets.AZURE_VM_IP }}"

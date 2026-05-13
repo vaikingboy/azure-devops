@@ -1,0 +1,89 @@
+# .github/workflows/terraform-deploy.yml
+name: Terraform Deploy Infrastructure
+ 
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'main.tf'
+      - 'variables.tf'
+      - 'outputs.tf'
+      - '.github/workflows/terraform-deploy.yml'
+  workflow_dispatch:   # also allow manual trigger
+ 
+env:
+  TF_VERSION: '1.6.0'
+  ARM_CLIENT_ID:       ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+  ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).subscriptionId }}
+  ARM_TENANT_ID:       ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).tenantId }}
+ 
+jobs:
+  terraform-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+ 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Write SSH public key to file
+        run: |
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/devopslab_key.pub
+          chmod 644 /tmp/devopslab_key.pub
+          echo "SSH public key written successfully"
+          head -c 40 /tmp/devopslab_key.pub   # verify first 40 chars
+          
+      - name: create terraform.tfvars
+        run: |
+          cat > terraform.tfvars << EOF
+          resource_group_name = "${{ secrets.RESOURCE_GROUP_NAME }}"
+          location            = "East US"
+          vm_admin_username   = "${{ secrets.VM_USERNAME }}"
+          prefix              = "${{ secrets.TF_PREFIX }}"
+          ssh_public_key      = "$(cat /tmp/devopslab_key.pub)"
+          EOF
+          echo "tfvars written (key value masked in logs)"
+  
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+ 
+      - name: Terraform Plan
+        run: terraform plan --out=tfplan
+ 
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: get outputs
+        id: tf_outputs
+        run: |
+          VM_IP=$(terraform output -raw public_ip_address)
+          echo "VM_IP=$VM_IP" >> $GITHUB_OUTPUT
+          echo "VM_IP=$VM_IP" >> $GITHUB_ENV
+          echo "Infrastructure deployed — VM IP: $VM_IP"
+      - name: Verify VM is reachable
+        run: |
+          echo "Waiting 60s for VM to fully boot and Apache to start..."
+          sleep 60
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+            http://${{ env.VM_IP }} || echo '000')
+          echo "HTTP Status: $HTTP"
+          if [ "$HTTP" = "200" ]; then
+            echo "VM and Apache are up and running"
+          else
+            echo "Warning: Apache may still be starting up (cloud-init runs async)"
+            echo "Check http://${{ env.VM_IP }} in 2-3 minutes"
+          fi
+ 
+
